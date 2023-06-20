@@ -1,0 +1,157 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>WebGL Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+    <script type="module">
+
+        import { initBuffers } from "./init-buffers.js";
+        import { drawScene } from "./draw-scene.js";
+
+        let cubeRotation = 0.0;
+        let deltaTime = 0;
+
+        main();
+
+        // Начало
+        function main() {
+            const canvas = document.querySelector("#glcanvas");
+            // Инициализируем контекст GL
+            const gl = canvas.getContext("webgl");
+
+            // Продолжаем, только если WebGL доступен и работает
+            if (gl === null) {
+                alert(
+                    "Не удалось инициализировать WebGL."
+                );
+                return;
+            }
+
+            // Устанавливаем цвет
+            gl.clearColor(1.0, 1.0, 1.0, 1.0);
+            // Очищаем цветовой буфер указанным цветом
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // Программа вершинного шейдера
+
+            const vsSource = `
+    attribute vec4 aVertexPosition;
+    attribute vec4 aVertexColor;
+
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uProjectionMatrix;
+
+    varying lowp vec4 vColor;
+
+    void main(void) {
+      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+      vColor = aVertexColor;
+    }
+  `;
+
+            // Программа фрагментного шейдера
+
+            const fsSource = `
+    varying lowp vec4 vColor;
+
+    void main(void) {
+      gl_FragColor = vColor;
+    }
+  `;
+
+            // Инициализируем шейдерную программу.
+            const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+
+            const programInfo = {
+                program: shaderProgram,
+                attribLocations: {
+                    vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
+                    vertexColor: gl.getAttribLocation(shaderProgram, "aVertexColor"),
+                },
+                uniformLocations: {
+                    projectionMatrix: gl.getUniformLocation(
+                        shaderProgram,
+                        "uProjectionMatrix"
+                    ),
+                    modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix"),
+                },
+            };
+
+            // Вызываем подпрограмму, которая создает все объекты, которые мы будем рисовать.
+            const buffers = initBuffers(gl);
+
+            let then = 0;
+
+            // Повторно рнисуем сцену
+            function render(now) {
+                now *= 0.001; // перевести в секунды
+                deltaTime = now - then;
+                then = now;
+
+                drawScene(gl, programInfo, buffers, cubeRotation);
+                cubeRotation += deltaTime;
+
+                requestAnimationFrame(render);
+            }
+            requestAnimationFrame(render);
+        }
+
+        // Инициализируем шейдерную программу, чтобы WebGL знал, как рисовать наши данные
+        function initShaderProgram(gl, vsSource, fsSource) {
+            const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+            // Создаём шейдерную программу
+
+            const shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, vertexShader);
+            gl.attachShader(shaderProgram, fragmentShader);
+            gl.linkProgram(shaderProgram);
+
+            // Если создать шейдерную программу не удалось, предупредите
+
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                alert(
+                    `Не удалось инициализировать шейдерную программу: ${gl.getProgramInfoLog(
+                        shaderProgram
+                    )}`
+                );
+                return null;
+            }
+
+            return shaderProgram;
+        }
+
+        // Создаём шейдер заданного типа, загружает исходный код и компилирует его.
+        function loadShader(gl, type, source) {
+            const shader = gl.createShader(type);
+
+            // Отправляем исходный код в объект шейдера.
+
+            gl.shaderSource(shader, source);
+
+            // Компилируем шейдерную программу.
+
+            gl.compileShader(shader);
+
+            // Смотрим, успешно ли он скомпилирован.
+
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert(
+                    `Произошла ошибка при компиляции шейдеров: ${gl.getShaderInfoLog(shader)}`
+                );
+                gl.deleteShader(shader);
+                return null;
+            }
+
+            return shader;
+        }
+    </script>
+</head>
+
+<body>
+<canvas id="glcanvas" width="640" height="480"></canvas>
+</body>
+</html>
